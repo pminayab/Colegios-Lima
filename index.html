@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Colegios STEM · Lima 2026</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#10131a;--paper:#f5f1e8;--gold:#c08a1e;--rust:#b03a2e;
+  --sage:#2d6a4f;--slate:#2c4a6e;--violet:#5c4a8a;--warm:#8c7355;
+  --light:#ece6d8;--border:#d4c9b0;--shadow:rgba(16,19,26,.18);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink)}
+.shell{display:flex;height:100vh;overflow:hidden}
+
+/* ── SIDEBAR ── */
+.sidebar{
+  width:320px;flex-shrink:0;
+  background:var(--ink);color:#ddd5c0;
+  display:flex;flex-direction:column;overflow:hidden;
+  box-shadow:4px 0 20px rgba(0,0,0,.35);
+  z-index:10;
+}
+.head{padding:20px 18px 14px;border-bottom:1px solid #1d2233}
+.head h1{font-family:'Lora',serif;font-size:20px;line-height:1.25;color:#f0e8d4}
+.head h1 em{font-style:italic;color:var(--gold)}
+.head p{font-size:10.5px;color:#6e6450;margin-top:5px;letter-spacing:.03em}
+
+/* ── FILTROS ── */
+.filters{padding:12px 18px;border-bottom:1px solid #1d2233}
+.f-label{font-size:9.5px;font-weight:600;letter-spacing:.08em;color:#5a5040;text-transform:uppercase;display:block;margin-bottom:7px}
+.pills{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+.pill{
+  font-size:10.5px;padding:3px 10px;border-radius:20px;
+  border:1px solid #252b3a;background:transparent;color:#8a7e6a;
+  cursor:pointer;transition:all .15s;font-family:'DM Sans',sans-serif;
+}
+.pill:hover{border-color:#5a5040;color:#c8bca0}
+.pill.on{border-color:transparent;color:#fff;font-weight:500}
+.p-all.on   {background:var(--warm)}
+.p-pub.on   {background:var(--sage)}
+.p-lai.on   {background:var(--slate)}
+.p-rel.on   {background:var(--violet)}
+.p-ib.on    {background:var(--gold)}
+.p-war.on   {background:#c07020}
+.p-nor.on   {background:#3a6a5a}
+.p-cen.on   {background:#4a5a3a}
+.p-sur.on   {background:var(--rust)}
+.search{
+  width:100%;background:#181d2a;border:1px solid #252b3a;
+  color:#c8bca0;font-family:'DM Sans',sans-serif;font-size:12px;
+  padding:7px 10px;border-radius:6px;outline:none;transition:border .15s;margin-top:8px;
+}
+.search::placeholder{color:#3e3a30}
+.search:focus{border-color:var(--gold)}
+
+/* ── LISTA ── */
+.list-hd{
+  padding:8px 18px;font-size:9.5px;font-weight:600;
+  letter-spacing:.08em;color:#5a5040;text-transform:uppercase;
+  border-bottom:1px solid #1d2233;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.badge{
+  background:var(--gold);color:#10131a;
+  font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;
+}
+.list{flex:1;overflow-y:auto}
+.list::-webkit-scrollbar{width:3px}
+.list::-webkit-scrollbar-track{background:transparent}
+.list::-webkit-scrollbar-thumb{background:#252b3a;border-radius:2px}
+.li{
+  padding:9px 18px;border-bottom:1px solid #181d2a;
+  cursor:pointer;transition:background .1s;
+}
+.li:hover{background:#181d2a}
+.li.active{background:#1c2235;border-left:3px solid var(--gold);padding-left:15px}
+.li-name{font-size:11.5px;font-weight:500;color:#d0c4ae;line-height:1.3}
+.li-meta{display:flex;gap:5px;margin-top:4px;flex-wrap:wrap;align-items:center}
+.li-dist{font-size:10px;color:#5a5040}
+.li-price{font-size:10px;color:#8a7e6a;margin-left:auto}
+.tag{font-size:8.5px;font-weight:700;padding:1px 5px;border-radius:3px;text-transform:uppercase;letter-spacing:.04em}
+.t-pub{background:#0d2a1a;color:#5ec97a}
+.t-lai{background:#0d1e35;color:#5a9fd8}
+.t-rel{background:#1e1030;color:#b07ad8}
+.t-ib {background:#2a1800;color:#d4a030}
+.t-war{background:#2a1200;color:#e07828}
+
+/* ── MAPA ── */
+.map-wrap{flex:1;position:relative}
+#map{width:100%;height:100%}
+
+/* ── LEYENDA ── */
+.legend{
+  position:absolute;bottom:18px;right:12px;z-index:999;
+  background:rgba(16,19,26,.93);backdrop-filter:blur(10px);
+  border:1px solid #252b3a;border-radius:10px;
+  padding:12px 14px;color:#c8bca0;font-size:11px;
+  box-shadow:0 4px 24px rgba(0,0,0,.45);min-width:170px;
+}
+.leg-title{font-family:'Lora',serif;font-size:13px;color:#f0e8d4;margin-bottom:9px}
+.leg-row{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.leg-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0}
+.leg-hr{border:none;border-top:1px solid #252b3a;margin:6px 0}
+.vis{color:var(--gold);font-weight:600;font-size:10.5px}
+
+/* ── POPUP ── */
+.leaflet-popup-content-wrapper{
+  background:#10131a;border:1px solid #252b3a;border-radius:10px;
+  box-shadow:0 8px 32px rgba(0,0,0,.6);padding:0;overflow:hidden;
+}
+.leaflet-popup-content{margin:0;min-width:260px;max-width:320px}
+.leaflet-popup-tip-container{display:none}
+.leaflet-popup-close-button{color:#5a5040!important;top:8px!important;right:8px!important;font-size:16px!important}
+.pop{font-family:'DM Sans',sans-serif}
+.pop-head{padding:13px 15px 9px;border-bottom:1px solid #1d2233}
+.pop-badge{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;font-size:10px;font-weight:700;color:#fff;margin-right:7px;vertical-align:middle;flex-shrink:0}
+.pop-name{font-size:13px;font-weight:600;color:#f0e8d4;line-height:1.3}
+.pop-dist{font-size:10px;color:#5a5040;margin-top:2px}
+.pop-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+.pop-body{padding:9px 15px 12px}
+.pop-row{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid #1a1f2e;font-size:11px}
+.pop-row:last-child{border:none}
+.pop-lbl{color:#5a5040;flex-shrink:0}
+.pop-val{color:#c8bca0;text-align:right;line-height:1.3}
+.pop-note{margin-top:7px;font-size:10px;color:#5a5040;font-style:italic;line-height:1.4;padding-top:6px;border-top:1px solid #1a1f2e}
+.pop-web{
+  display:block;margin:8px 15px 12px;
+  background:#1a1f2e;border:1px solid #252b3a;
+  border-radius:6px;padding:6px 10px;
+  font-size:10.5px;color:var(--gold);text-decoration:none;
+  text-align:center;transition:background .15s;
+}
+.pop-web:hover{background:#252b3a;color:#e0b040}
+
+/* mobile */
+@media(max-width:640px){
+  .sidebar{width:100%;height:42vh;flex-direction:column}
+  .shell{flex-direction:column}
+  .map-wrap{height:58vh}
+  .legend{display:none}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="head">
+    <h1>Colegios <em>STEM</em> · Lima</h1>
+    <p>Pensión Primaria ≤ S/2,000 · STEM verificado · 2025–2026</p>
+  </div>
+
+  <div class="filters">
+    <span class="f-label">Tipo de colegio</span>
+    <div class="pills" id="pills-tipo">
+      <button class="pill p-all on"  data-f="all">Todos</button>
+      <button class="pill p-pub"     data-f="pub">Públicos</button>
+      <button class="pill p-lai"     data-f="lai">Laicos</button>
+      <button class="pill p-rel"     data-f="rel">Religiosos</button>
+      <button class="pill p-ib"      data-f="ib">Con IB</button>
+      <button class="pill p-war"     data-f="war">⚠ S/2,000–2,499</button>
+    </div>
+    <span class="f-label">Zona</span>
+    <div class="pills" id="pills-zona">
+      <button class="pill p-nor" data-z="nor">Norte</button>
+      <button class="pill p-cen" data-z="cen">Centro</button>
+      <button class="pill p-sur" data-z="sur">Sur / Este</button>
+    </div>
+    <input class="search" id="q" placeholder="Buscar nombre o distrito…" autocomplete="off">
+  </div>
+
+  <div class="list-hd">
+    <span>Colegios visibles</span>
+    <span class="badge" id="cnt">—</span>
+  </div>
+  <div class="list" id="list"></div>
+</div>
+
+<!-- MAPA -->
+<div class="map-wrap">
+  <div id="map"></div>
+  <div class="legend">
+    <div class="leg-title">Leyenda</div>
+    <div class="leg-row"><span class="leg-dot" style="background:#2d6a4f"></span>Público gratuito</div>
+    <div class="leg-row"><span class="leg-dot" style="background:#2c4a6e"></span>Privado laico ≤ S/2,000</div>
+    <div class="leg-row"><span class="leg-dot" style="background:#5c4a8a"></span>Privado religioso ≤ S/2,000</div>
+    <div class="leg-row"><span class="leg-dot" style="background:#c08a1e"></span>Con IB (dentro rango)</div>
+    <div class="leg-row"><span class="leg-dot" style="background:#c07020"></span>⚠ Primaria S/2,000–2,499</div>
+    <hr class="leg-hr">
+    <div class="vis" id="vis">— visibles</div>
+  </div>
+</div>
+
+</div>
+
+<script>
+// ════════════════════════════════════
+//  BASE DE DATOS — 48 colegios
+// ════════════════════════════════════
+const D = [
+
+// ─── PÚBLICOS GRATUITOS ───────────────────────────────────────────────────
+{id:1, n:"COAR Lima — Colegio Mayor Presidente del Perú",
+ dist:"Lurigancho-Chosica", lat:-11.9738, lng:-76.7738,
+ color:"#2d6a4f", tipo:"pub", ib:1, war:0,
+ ini:"S/0 (residencial)", pri:"S/0", ing:"Gratuito",
+ stem:"Labs Bio/Quím/Fís · robótica dedicada · IB Diploma",
+ afil:"Público MINEDU", zona:"sur",
+ web:"https://www.minedu.gob.pe/coar/",
+ nota:"Solo 3°-5° sec. Residencial selectivo. #1 PUCP 2025."},
+
+{id:2, n:"IEE Melitón Carvajal",
+ dist:"Lince", lat:-12.0843, lng:-77.0268,
+ color:"#2d6a4f", tipo:"pub", ib:0, war:0,
+ ini:"S/0", pri:"S/0", ing:"Gratuito",
+ stem:"Kits robótica UNI-CTIC · labs Bio/Quím/Fís · talleres electrónica",
+ afil:"Público JEC", zona:"cen",
+ web:"https://ieemelitoncarvajal.edu.pe/",
+ nota:"400+ alumnos certificados en robótica."},
+
+{id:3, n:"IEE Teresa González de Fanning",
+ dist:"Jesús María", lat:-12.0796, lng:-77.0437,
+ color:"#2d6a4f", tipo:"pub", ib:0, war:0,
+ ini:"S/0", pri:"S/0", ing:"Gratuito",
+ stem:"3 labs ciencias · kits robótica · AIP renovada",
+ afil:"Público JEC femenino", zona:"cen",
+ web:"https://identicole.minedu.gob.pe/colegio/03179330",
+ nota:"Inicial, primaria y secundaria."},
+
+{id:4, n:"IEE Alfonso Ugarte",
+ dist:"San Isidro", lat:-12.0992, lng:-77.0267,
+ color:"#2d6a4f", tipo:"pub", ib:0, war:0,
+ ini:"S/0", pri:"S/0", ing:"Gratuito",
+ stem:"3 labs · 2 CRT · piscina · robótica extracurricular",
+ afil:"Público JEC varones", zona:"cen",
+ web:"https://www.drelm.gob.pe/",
+ nota:"⚠ Verificar cierre parcial por sismo 2025."},
+
+{id:5, n:"IEE Rosa de Santa María",
+ dist:"Breña", lat:-12.0531, lng:-77.0455,
+ color:"#2d6a4f", tipo:"pub", ib:0, war:0,
+ ini:"S/0", pri:"S/0", ing:"Gratuito",
+ stem:"3 labs · 2 CRT · huerto hidropónico",
+ afil:"Público JEC femenino", zona:"cen",
+ web:"https://identicole.minedu.gob.pe/",
+ nota:"~3,900 alumnas."},
+
+{id:6, n:"IEE Hipólito Unanue",
+ dist:"Cercado de Lima", lat:-12.0521, lng:-77.0704,
+ color:"#2d6a4f", tipo:"pub", ib:0, war:0,
+ ini:"S/0", pri:"S/0", ing:"Gratuito",
+ stem:"3 labs separados Bio/Quím/Fís · arquitectura inteligente",
+ afil:"Público JEC", zona:"nor",
+ web:"https://identicole.minedu.gob.pe/",
+ nota:"Primaria y secundaria."},
+
+{id:7, n:"IEE Ricardo Bentín",
+ dist:"Rímac", lat:-12.0310, lng:-77.0375,
+ color:"#2d6a4f", tipo:"pub", ib:0, war:0,
+ ini:"S/0", pri:"S/0", ing:"Gratuito",
+ stem:"11 talleres equipados · sala cómputo · remodelado 2010",
+ afil:"Público JEC", zona:"nor",
+ web:"https://identicole.minedu.gob.pe/",
+ nota:"Inicial, primaria y secundaria."},
+
+{id:8, n:"IEE Nuestra Señora de Guadalupe",
+ dist:"Cercado de Lima", lat:-12.0560, lng:-77.0460,
+ color:"#2d6a4f", tipo:"pub", ib:0, war:0,
+ ini:"S/0 (sec)", pri:"S/0", ing:"Gratuito",
+ stem:"Club Robótica con impresora 3D · Club Ciencias · labs JEC",
+ afil:"Público laico (1840)", zona:"nor",
+ web:"https://identicole.minedu.gob.pe/",
+ nota:"Solo secundaria varones. Nombre histórico; gestión laica."},
+
+{id:9, n:"IE Gran Amauta Mariátegui — Escuela Bicentenario PEIP",
+ dist:"San Juan de Lurigancho", lat:-12.0150, lng:-76.9900,
+ color:"#2d6a4f", tipo:"pub", ib:0, war:0,
+ ini:"S/0", pri:"S/0", ing:"Gratuito",
+ stem:"Impresoras 3D · cortadoras láser · labs modernos · aulas flexibles",
+ afil:"Público MINEDU (PEIP 2025)", zona:"nor",
+ web:"https://www.minedu.gob.pe/",
+ nota:"1,600 alumnos. La infraestructura STEM pública más nueva de Lima."},
+
+{id:10, n:"Fe y Alegría 17",
+ dist:"Villa El Salvador", lat:-12.2183, lng:-76.9380,
+ color:"#2d6a4f", tipo:"pub", ib:0, war:0,
+ ini:"S/0", pri:"S/0", ing:"Gratuito",
+ stem:"Kits robótica · 5 especialidades técnicas · labs JEC",
+ afil:"Jesuita social (convenio MINEDU)", zona:"sur",
+ web:"https://feyalegria17.edu.pe/",
+ nota:"Gratuito. Referente STEM técnico en Lima sur."},
+
+// ─── PRIVADOS LAICOS ≤ S/2,000 primaria ──────────────────────────────────
+{id:11, n:"Colegio Augusto Weberbauer",
+ dist:"Santiago de Surco", lat:-12.0952, lng:-76.9676,
+ color:"#2c4a6e", tipo:"lai", ib:0, war:0,
+ ini:"S/1,190", pri:"S/1,330", ing:"S/18,000",
+ stem:"Científico-experimental · plurilingüe alemán-inglés · labs ciencias",
+ afil:"Laico cooperativo peruano-alemán", zona:"sur",
+ web:"https://www.weberbauer.edu.pe/",
+ nota:"Sprachdiplom DSD + Cambridge. Grupos máx. 24 alumnos."},
+
+{id:12, n:"Colegio Christa McAuliffe",
+ dist:"Lince", lat:-12.0836, lng:-77.0458,
+ color:"#2c4a6e", tipo:"lai", ib:0, war:0,
+ ini:"S/1,660", pri:"S/1,660", ing:"S/4,990–7,990",
+ stem:"Robótica · mecatrónica · viajes NASA · cohetes · labs Bio/Quím/Fís",
+ afil:"Laico", zona:"cen",
+ web:"https://colegiomc.edu.pe/",
+ nota:"Cambridge + DELF. Mejor STEM/precio en Lima laica privada."},
+
+{id:13, n:"Los Reyes Rojos",
+ dist:"Barranco", lat:-12.1448, lng:-77.0213,
+ color:"#2c4a6e", tipo:"lai", ib:0, war:0,
+ ini:"S/1,465", pri:"S/1,750", ing:"Publicada",
+ stem:"Labs ciencias y tecnología con clases prácticas",
+ afil:"Laico alternativo", zona:"sur",
+ web:"https://losreyesrojos.edu.pe/",
+ nota:"Fuerte en artes y humanidades; STEM complementario."},
+
+{id:14, n:"Pitágoras Los Olivos",
+ dist:"Los Olivos", lat:-11.9929, lng:-77.0701,
+ color:"#2c4a6e", tipo:"lai", ib:0, war:0,
+ ini:"S/550", pri:"S/550", ing:"No publicada",
+ stem:"Método ATP · Alianza Microsoft · feria de ciencias",
+ afil:"Laico", zona:"nor",
+ web:"https://pitagoras.edu.pe/colegio/",
+ nota:"Cambridge English. Comas: sede Las Musas 144."},
+
+{id:15, n:"Innova Schools (Chorrillos — Los Faisanes)",
+ dist:"Chorrillos", lat:-12.1709, lng:-76.9935,
+ color:"#2c4a6e", tipo:"lai", ib:0, war:0,
+ ini:"S/865", pri:"S/865", ing:"≈ S/865",
+ stem:"Makerspace · LEGO · Arduino · impresoras 3D · MediaLab",
+ afil:"Laico (Intercorp — 36 sedes en Lima)", zona:"sur",
+ web:"https://www.innovaschools.edu.pe/",
+ nota:"Acreditación AdvancED/Cognia. Inglés 8h/semana. B2 al egresar."},
+
+{id:16, n:"Innova Schools (SJL — Campoy)",
+ dist:"San Juan de Lurigancho", lat:-12.0235, lng:-76.9742,
+ color:"#2c4a6e", tipo:"lai", ib:0, war:0,
+ ini:"S/700", pri:"S/700", ing:"≈ S/700",
+ stem:"Makerspace · LEGO · Arduino · Design Thinking · MediaLab",
+ afil:"Laico (Intercorp)", zona:"nor",
+ web:"https://www.innovaschools.edu.pe/sedes",
+ nota:"Sede norte referencial de la red. Ver todas las sedes en web."},
+
+{id:17, n:"Innova Schools (SJM — Pedro Miotta)",
+ dist:"San Juan de Miraflores", lat:-12.1746, lng:-76.9765,
+ color:"#2c4a6e", tipo:"lai", ib:0, war:0,
+ ini:"S/745", pri:"S/745", ing:"≈ S/745",
+ stem:"Makerspace · LEGO · Arduino · Innovation Program",
+ afil:"Laico (Intercorp)", zona:"sur",
+ web:"https://www.innovaschools.edu.pe/sedes",
+ nota:"Sede sur referencial. Precio uniforme entre niveles."},
+
+{id:18, n:"Trilce (sede Jesús María — Salaverry)",
+ dist:"Jesús María", lat:-12.0750, lng:-77.0398,
+ color:"#2c4a6e", tipo:"lai", ib:0, war:0,
+ ini:"S/615", pri:"S/615", ing:"S/350–800",
+ stem:"Labs ciencias · taller Robotic Space en sedes seleccionadas",
+ afil:"Laico preuniversitario (18 sedes Lima)", zona:"cen",
+ web:"https://www.trilce.edu.pe/colegio",
+ nota:"STEM varía por sede. Fuerte en matemáticas y preuniversitario."},
+
+{id:19, n:"Saco Oliveros (Barranco)",
+ dist:"Barranco", lat:-12.1501, lng:-77.0207,
+ color:"#2c4a6e", tipo:"lai", ib:0, war:0,
+ ini:"S/785", pri:"S/785", ing:"S/400",
+ stem:"Labs ciencias · Escuela Sabatina CyT · robótica (sede Apeirón SMP)",
+ afil:"Laico preuniversitario (~44 sedes Lima)", zona:"sur",
+ web:"https://sacooliveros.edu.pe/",
+ nota:"Campeón mundial escolar de ajedrez 2024. Medallas olimpiadas internacionales."},
+
+{id:20, n:"Pamer (Magdalena del Mar)",
+ dist:"Magdalena del Mar", lat:-12.0855, lng:-77.0680,
+ color:"#2c4a6e", tipo:"lai", ib:0, war:0,
+ ini:"S/730", pri:"S/730", ing:"Gratuita (promo 2025–2026)",
+ stem:"Aulas tecnológicas · Centro Alto Rendimiento",
+ afil:"Laico preuniversitario (20+ sedes Lima)", zona:"cen",
+ web:"https://pamer.edu.pe/colegios/",
+ nota:"No ofrece nivel Inicial en mayoría de sedes."},
+
+// ─── PRIVADOS RELIGIOSOS ≤ S/2,000 primaria ──────────────────────────────
+{id:21, n:"María Reina Marianistas",
+ dist:"San Isidro", lat:-12.1083, lng:-77.0362,
+ color:"#5c4a8a", tipo:"rel", ib:0, war:0,
+ ini:"S/1,750", pri:"S/1,980", ing:"S/15,000",
+ stem:"Labs ciencias · club robótica · 2 salas cómputo · multimedia inicial",
+ afil:"Católico Marianista femenino", zona:"cen",
+ web:"https://www.mariareina.edu.pe/www/",
+ nota:"Fundado 1965. Bilingüe esp-inglés. Mejor religioso <S/2k con STEM."},
+
+{id:22, n:"Sagrado Corazón Sophianum",
+ dist:"San Isidro", lat:-12.0869, lng:-77.0491,
+ color:"#5c4a8a", tipo:"rel", ib:0, war:0,
+ ini:"S/1,500", pri:"S/1,700", ing:"S/7,000",
+ stem:"Labs Fís/Quím · aula robótica · 4 salas cómputo · lab idiomas",
+ afil:"Católico Sagrado Corazón femenino", zona:"cen",
+ web:"https://sophianum.edu.pe/",
+ nota:"Cambridge + acred. UP. +50 años en Perú."},
+
+{id:23, n:"El Buen Pastor (Los Olivos)",
+ dist:"Los Olivos", lat:-11.9958, lng:-77.0694,
+ color:"#5c4a8a", tipo:"rel", ib:0, war:0,
+ ini:"S/645", pri:"S/910", ing:"S/1,500",
+ stem:"Labs Quím/Fís/Bio · sala cómputo 40 PCs · bilingüe",
+ afil:"Católico diocesano", zona:"nor",
+ web:"https://elbp.edu.pe/",
+ nota:"Cambridge. El más asequible con STEM real en Lima norte."},
+
+{id:24, n:"Reina de los Ángeles",
+ dist:"La Molina", lat:-12.0787, lng:-76.9256,
+ color:"#5c4a8a", tipo:"rel", ib:0, war:0,
+ ini:"S/1,700", pri:"S/1,700", ing:"Publicada",
+ stem:"Labs ciencias/informática/idiomas · SmartClass · trilingüe",
+ afil:"Católico Dominicas", zona:"sur",
+ web:"https://reinadelosangeles.edu.pe/",
+ nota:"DELF + Cambridge. Español-inglés-francés."},
+
+{id:25, n:"Regina Pacis",
+ dist:"Santiago de Surco", lat:-12.1103, lng:-76.9700,
+ color:"#5c4a8a", tipo:"rel", ib:0, war:0,
+ ini:"S/630", pri:"S/1,510", ing:"S/8,350",
+ stem:"Lab ciencias · lab cómputo · bilingüe esp-fra",
+ afil:"Católico Franciscano-Mariano", zona:"sur",
+ web:"https://rpacis.edu.pe/",
+ nota:"Cambridge + DELF. Muy asequible en inicial."},
+
+{id:26, n:"Colegio Peruano Chino Juan XXIII",
+ dist:"San Miguel", lat:-12.0825, lng:-77.0782,
+ color:"#5c4a8a", tipo:"rel", ib:0, war:0,
+ ini:"S/1,180", pri:"S/1,560", ing:"S/11,493",
+ stem:"STEAM curricular · robótica educativa · pensamiento computacional",
+ afil:"Católico Franciscano", zona:"nor",
+ web:"https://www.juan23.edu.pe/",
+ nota:"Trilingüe: español + inglés + chino mandarín."},
+
+{id:27, n:"Colegio San Luis Maristas",
+ dist:"Barranco", lat:-12.1411, lng:-77.0208,
+ color:"#5c4a8a", tipo:"rel", ib:0, war:0,
+ ini:"S/1,500", pri:"S/1,900", ing:"S/6,000",
+ stem:"Lab física-química · lab inglés · sala cómputo",
+ afil:"Católico Marista varones", zona:"sur",
+ web:"https://sanluis.edu.pe/",
+ nota:"Deportes de alto nivel. Tradición 1927."},
+
+{id:28, n:"Champagnat Maristas",
+ dist:"Santiago de Surco", lat:-12.1438, lng:-76.9992,
+ color:"#5c4a8a", tipo:"rel", ib:1, war:0,
+ ini:"S/1,500", pri:"S/1,890", ing:"S/7,150–15,730",
+ stem:"Labs ciencias y tecnología · campus 50,000 m² · talleres",
+ afil:"Católico Marista", zona:"sur",
+ web:"https://www.champagnat.edu.pe/",
+ nota:"IB PYP + MYP. Primaria con pensión justo bajo S/2,000."},
+
+// ─── IB / RANGO S/2,000–2,499 (primaria) ─────────────────────────────────
+{id:29, n:"Abraham Lincoln American College",
+ dist:"La Molina", lat:-12.0681, lng:-76.9684,
+ color:"#c08a1e", tipo:"lai", ib:1, war:1,
+ ini:"S/2,040", pri:"S/2,040", ing:"S/22,500",
+ stem:"Makerspace STEAM + Innovation Lab + robótica + 3 labs ciencias",
+ afil:"Laico cooperativo", zona:"sur",
+ web:"https://abrahamlincoln.edu.pe/",
+ nota:"⚠ S/40 sobre tope en primaria. Triple IB: PYP+MYP+DP. 4 idiomas."},
+
+{id:30, n:"Colegio SS.CC. Recoleta",
+ dist:"La Molina", lat:-12.0759, lng:-76.9619,
+ color:"#c08a1e", tipo:"rel", ib:1, war:1,
+ ini:"S/1,980", pri:"S/2,230", ing:"S/13,500",
+ stem:"Labs ciencias · robótica extracurricular · Chromebooks 1:1",
+ afil:"Católico Sagrados Corazones", zona:"sur",
+ web:"https://www.recoleta.edu.pe/",
+ nota:"⚠ Primaria S/2,230. IB DP desde 1999."},
+
+{id:31, n:"De la Inmaculada — Jesuitas",
+ dist:"Santiago de Surco", lat:-12.1304, lng:-76.9730,
+ color:"#c07020", tipo:"rel", ib:1, war:1,
+ ini:"S/2,140", pri:"S/2,465", ing:"S/22,500",
+ stem:"4 labs ciencias · 2 salas innovación tecnológica",
+ afil:"Católico Jesuita varones", zona:"sur",
+ web:"https://www.lainmaculada.edu.pe/",
+ nota:"⚠ IB DP + Doble Diploma Canadiense + Cambridge."},
+
+{id:32, n:"Colegio San Agustín",
+ dist:"San Isidro", lat:-12.0907, lng:-77.0208,
+ color:"#c07020", tipo:"rel", ib:1, war:1,
+ ini:"S/2,140", pri:"S/2,140", ing:"S/19,700",
+ stem:"Labs ciencias · robótica en primaria · cómputo avanzado",
+ afil:"Católico Agustino varones", zona:"cen",
+ web:"https://www.sanagustin.edu.pe/",
+ nota:"⚠ IB DP + Cambridge + portugués."},
+
+{id:33, n:"Colegio Santa Úrsula",
+ dist:"San Isidro", lat:-12.0971, lng:-77.0395,
+ color:"#c07020", tipo:"rel", ib:1, war:1,
+ ini:"S/2,120", pri:"S/2,120", ing:"USD 5,500",
+ stem:"Labs ciencias · Sprachdiplom I y II alemán · Cambridge",
+ afil:"Ursulino femenino", zona:"cen",
+ web:"https://www.santaursula.edu.pe/",
+ nota:"⚠ IB DP desde 2012. Solo mujeres."},
+
+{id:34, n:"San Ignacio de Recalde (SIR)",
+ dist:"San Borja / Surco", lat:-12.1095, lng:-76.9956,
+ color:"#c07020", tipo:"lai", ib:1, war:1,
+ ini:"S/1,600", pri:"S/2,450", ing:"USD 2,700–10,000",
+ stem:"Lab STEAM + 2 labs ciencias + makerspace + Junior Achievement",
+ afil:"Laico (Corporación USIL)", zona:"sur",
+ web:"https://www.sir.edu.pe/",
+ nota:"⚠ Primaria S/2,450. IB PYP+DP + Cambridge + DELF. Inicial muy accesible."},
+
+{id:35, n:"Saint George's College (Senior — Chorrillos)",
+ dist:"Chorrillos", lat:-12.2091, lng:-77.0019,
+ color:"#c07020", tipo:"lai", ib:1, war:1,
+ ini:"S/2,060", pri:"S/2,300", ing:"S/14,000–32,000",
+ stem:"Makerspace · Science Lab · Entrepreneurship Lab · estudio grabación",
+ afil:"Laico ISP británico (3 campus)", zona:"sur",
+ web:"https://www.stgeorges.edu.pe/",
+ nota:"⚠ IB DP+CP + IEYC/IPC/IMYC. Cambridge. 3 campus Lima."},
+
+{id:36, n:"Lord Byron School",
+ dist:"La Molina", lat:-12.0836, lng:-76.9305,
+ color:"#c07020", tipo:"lai", ib:1, war:1,
+ ini:"S/2,150", pri:"S/2,150", ing:"Publicada",
+ stem:"Labs Bio/Fís/Quím · lab robótica · lab cómputo",
+ afil:"Laico bilingüe", zona:"sur",
+ web:"https://www.lordbyron.edu.pe/",
+ nota:"⚠ IB en trámite. Intercambios Alemania/Francia/UK. Trilingüe."},
+
+{id:37, n:"Villa Alarife",
+ dist:"Chorrillos (Huertos de Villa)", lat:-12.2033, lng:-77.0258,
+ color:"#c07020", tipo:"lai", ib:1, war:1,
+ ini:"S/1,800", pri:"S/2,150", ing:"S/20,000–25,000",
+ stem:"2 labs + sala cómputo + talleres creativos",
+ afil:"Laico", zona:"sur",
+ web:"https://www.villaalarife.edu.pe/",
+ nota:"⚠ IB DP + MYP desde 2017. STEM moderado."},
+
+{id:38, n:"Euroamerican College (Inicial califica)",
+ dist:"Pachacámac", lat:-12.2176, lng:-76.8696,
+ color:"#c07020", tipo:"lai", ib:1, war:1,
+ ini:"S/1,990", pri:"S/2,600", ing:"USD 7,900–8,900",
+ stem:"Labs ciencias · campus 50,000 m² · bio-huerto · planta de aguas",
+ afil:"Laico ecológico bilingüe", zona:"sur",
+ web:"https://www.euroamericancollege.edu.pe/",
+ nota:"⚠ Solo Inicial califica. Primaria supera tope. IB PYP+DP."},
+
+// ─── IEE PÚBLICAS ADICIONALES ─────────────────────────────────────────────
+{id:39, n:"IEE Pedro A. Labarthe",
+ dist:"La Victoria", lat:-12.0691, lng:-77.0063,
+ color:"#2d6a4f", tipo:"pub", ib:0, war:0,
+ ini:"S/0", pri:"S/0", ing:"Gratuito",
+ stem:"Labs Fís/Quím/Bio · talleres mecánica y electrónica",
+ afil:"Público JEC", zona:"cen",
+ web:"https://identicole.minedu.gob.pe/",
+ nota:"Módulos húngaros de laboratorio desde 1979."},
+
+{id:40, n:"IEE Bartolomé Herrera",
+ dist:"San Martín de Porres / San Miguel", lat:-12.0812, lng:-77.0735,
+ color:"#2d6a4f", tipo:"pub", ib:0, war:0,
+ ini:"S/0", pri:"S/0", ing:"Gratuito",
+ stem:"Labs modernos ciencias · talleres técnicos · piscina",
+ afil:"Público JEC varones", zona:"nor",
+ web:"https://identicole.minedu.gob.pe/",
+ nota:"Secundaria y EBA."},
+
+// ─── PRIVADOS ADICIONALES ─────────────────────────────────────────────────
+{id:41, n:"Cambridge College Lima (Early Years califica)",
+ dist:"Chorrillos", lat:-12.2134, lng:-77.0035,
+ color:"#c07020", tipo:"lai", ib:1, war:1,
+ ini:"S/1,259", pri:"S/3,016", ing:"USD 13,600–16,000",
+ stem:"Labs robótica · IA · energía renovable · piscina semiolímpica",
+ afil:"Laico británico (Inspired Education)", zona:"sur",
+ web:"https://www.cambridge.edu.pe/",
+ nota:"⚠ Solo Early Years/Stage 2-3. Primaria excede tope. IB DP+IGCSE."},
+
+{id:42, n:"Altair La Molina (Nursery califica)",
+ dist:"La Molina", lat:-12.0940, lng:-76.9502,
+ color:"#c07020", tipo:"lai", ib:1, war:1,
+ ini:"S/1,640 (Nursery)", pri:"S/3,200+", ing:"USD 5,500–12,500",
+ stem:"Labs Bio/Quím/Fís · 2 labs cómputo · taller Sloyd · IB triple",
+ afil:"Laico (Inspired Education)", zona:"sur",
+ web:"https://www.colegioaltair.edu.pe/",
+ nota:"⚠ Solo Nursery califica. Primaria excede ampliamente. IB PEP+PAI+DP."},
+
+{id:43, n:"Colegio Antonio Raimondi (Inicial 2-4a califica)",
+ dist:"La Molina", lat:-12.0750, lng:-76.9445,
+ color:"#c07020", tipo:"lai", ib:0, war:1,
+ ini:"S/1,950 (2-3a) / S/2,180 (4a)", pri:"S/3,300+", ing:"USD 10,000",
+ stem:"Labs ciencias · áreas tecnología · bilingüe italiano",
+ afil:"Laico italiano", zona:"sur",
+ web:"https://www.raimondi.edu.pe/",
+ nota:"⚠ Solo Inicial 2-4 años califica. Primaria excede. Paritario Italia."},
+
+{id:44, n:"Fe y Alegría 1 (SMP — sede representativa norte)",
+ dist:"San Martín de Porres", lat:-12.0110, lng:-77.0580,
+ color:"#2d6a4f", tipo:"pub", ib:0, war:0,
+ ini:"S/0", pri:"S/0", ing:"Gratuito",
+ stem:"Labs JEC · talleres técnicos · AIP",
+ afil:"Jesuita social (convenio MINEDU)", zona:"nor",
+ web:"https://feyalegria.org.pe/",
+ nota:"24 sedes en Lima Metropolitana. STEM varía por sede."},
+
+{id:45, n:"Colegio Newton College",
+ dist:"La Molina", lat:-12.0819, lng:-76.9262,
+ color:"#c07020", tipo:"lai", ib:1, war:1,
+ ini:"S/885–1,270", pri:"S/885–1,270", ing:"USD 8,000–13,300",
+ stem:"7 labs ciencias · Design Thinking · Centro Sachavacayoc",
+ afil:"Laico", zona:"sur",
+ web:"https://newtoncollege.edu.pe/",
+ nota:"⚠ Pensión mensual publicada baja pero cuota ingreso USD 8–13k. IB PYP+MYP+DP."},
+
+{id:46, n:"Colegio Maristas — Champagnat (Campus Inicial)",
+ dist:"Miraflores", lat:-12.1200, lng:-77.0250,
+ color:"#5c4a8a", tipo:"rel", ib:0, war:0,
+ ini:"S/1,500", pri:"S/1,890", ing:"S/7,150",
+ stem:"Labs ciencias · campus propio",
+ afil:"Católico Marista", zona:"sur",
+ web:"https://www.champagnat.edu.pe/",
+ nota:"Sede inicial Miraflores. Mismo sistema que campus Surco."},
+
+{id:47, n:"Colegio IEE José María Eguren",
+ dist:"Barranco", lat:-12.1530, lng:-77.0170,
+ color:"#2d6a4f", tipo:"pub", ib:0, war:0,
+ ini:"S/0", pri:"S/0", ing:"Gratuito",
+ stem:"Labs ciencias JEC · AIP renovada · talleres técnicos",
+ afil:"Público JEC", zona:"sur",
+ web:"https://identicole.minedu.gob.pe/",
+ nota:"Primaria y secundaria Barranco."},
+
+{id:48, n:"Colegio IE Javier Pérez de Cuéllar — Escuela Bicentenario PEIP",
+ dist:"San Juan de Lurigancho", lat:-12.0200, lng:-76.9850,
+ color:"#2d6a4f", tipo:"pub", ib:0, war:0,
+ ini:"S/0", pri:"S/0", ing:"Gratuito",
+ stem:"Impresoras 3D · cortadoras láser · labs modernos PEIP 2025",
+ afil:"Público MINEDU (PEIP 2025)", zona:"nor",
+ web:"https://www.minedu.gob.pe/",
+ nota:"2da escuela bicentenario entregada en SJL. Infraestructura nueva."},
+];
+
+// ════════════════════════════════════
+//  MAPA LEAFLET
+// ════════════════════════════════════
+const map = L.map('map',{zoomControl:false}).setView([-12.09,-77.01],11);
+L.control.zoom({position:'topright'}).addTo(map);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
+  attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
+  maxZoom:19, subdomains:'abcd'
+}).addTo(map);
+
+// ── marker factory ──
+function mkIcon(color,num,size=30){
+  const r=size/2;
+  const h=Math.round(size*1.3);
+  const svg=`<svg width="${size}" height="${h}" viewBox="0 0 ${size} ${h}" xmlns="http://www.w3.org/2000/svg">
+    <path d="M${r} 0C${r*.4} 0 0 ${r*.4} 0 ${r}c0 ${r*1.5} ${r} ${r*2} ${r} ${r*2}S${size} ${r*2.5} ${size} ${r}C${size} ${r*.4} ${r*1.6} 0 ${r} 0z" fill="${color}" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/>
+    <text x="${r}" y="${r*1.15}" text-anchor="middle" font-size="${size*.33}px" font-weight="700" fill="white" font-family="DM Sans,sans-serif">${num}</text>
+  </svg>`;
+  return L.divIcon({className:'',html:svg,iconSize:[size,h],iconAnchor:[r,h],popupAnchor:[0,-h]});
+}
+
+// ── popup builder ──
+function mkPop(c){
+  const aColor = c.tipo==='pub'?'#5ec97a':c.tipo==='rel'?'#b07ad8':'#5a9fd8';
+  const tags=[
+    `<span class="tag" style="background:${aColor}18;color:${aColor}">${c.afil}</span>`,
+    c.ib  ? `<span class="tag t-ib">IB</span>` :'',
+    c.war ? `<span class="tag t-war">⚠ precio</span>`:''
+  ].filter(Boolean).join('');
+  return `<div class="pop">
+    <div class="pop-head">
+      <span class="pop-badge" style="background:${c.color}">${c.id}</span>
+      <span class="pop-name">${c.n}</span>
+      <div class="pop-dist">📍 ${c.dist}</div>
+      <div class="pop-tags">${tags}</div>
+    </div>
+    <div class="pop-body">
+      <div class="pop-row"><span class="pop-lbl">Inicial</span><span class="pop-val">${c.ini}</span></div>
+      <div class="pop-row"><span class="pop-lbl">Primaria</span><span class="pop-val">${c.pri}</span></div>
+      <div class="pop-row"><span class="pop-lbl">Ingreso</span><span class="pop-val">${c.ing}</span></div>
+      <div class="pop-row"><span class="pop-lbl">STEM</span><span class="pop-val">${c.stem}</span></div>
+      ${c.nota?`<p class="pop-note">${c.nota}</p>`:''}
+    </div>
+    <a class="pop-web" href="${c.web}" target="_blank" rel="noopener">🌐 Visitar sitio web oficial</a>
+  </div>`;
+}
+
+// ── estado ──
+let activeFilt='all', activeZona=null, activeQ='';
+let mks=[];
+
+function render(){
+  mks.forEach(m=>map.removeLayer(m.mk));
+  mks=[];
+  const listEl=document.getElementById('list');
+  listEl.innerHTML='';
+  const q=activeQ.toLowerCase();
+  let vis=0;
+
+  D.forEach(c=>{
+    // filtro tipo
+    const matchF=(
+      activeFilt==='all' ||
+      (activeFilt==='pub'  && c.tipo==='pub') ||
+      (activeFilt==='lai'  && c.tipo==='lai') ||
+      (activeFilt==='rel'  && c.tipo==='rel') ||
+      (activeFilt==='ib'   && c.ib) ||
+      (activeFilt==='war'  && c.war)
+    );
+    // filtro zona
+    const matchZ=(!activeZona || c.zona===activeZona);
+    // búsqueda
+    const matchQ=(!q||c.n.toLowerCase().includes(q)||c.dist.toLowerCase().includes(q)||c.afil.toLowerCase().includes(q));
+
+    if(!matchF||!matchZ||!matchQ) return;
+    vis++;
+
+    const mk=L.marker([c.lat,c.lng],{icon:mkIcon(c.color,c.id)})
+      .addTo(map)
+      .bindPopup(mkPop(c),{maxWidth:330,className:''});
+    mks.push({mk,id:c.id});
+
+    // item lista
+    const div=document.createElement('div');
+    div.className='li'; div.id=`li${c.id}`;
+    const ibTag=c.ib?`<span class="tag t-ib">IB</span>`:'';
+    const wTag=c.war?`<span class="tag t-war">⚠</span>`:'';
+    const tTag=c.tipo==='pub'?`<span class="tag t-pub">PUB</span>`:
+               c.tipo==='rel'?`<span class="tag t-rel">REL</span>`:
+                              `<span class="tag t-lai">LAI</span>`;
+    div.innerHTML=`<div class="li-name">${c.id}. ${c.n}</div>
+      <div class="li-meta">
+        <span class="li-dist">${c.dist}</span>
+        ${tTag}${ibTag}${wTag}
+        <span class="li-price">${c.pri}</span>
+      </div>`;
+    div.addEventListener('click',()=>{
+      map.setView([c.lat,c.lng],15,{animate:true});
+      mk.openPopup();
+      document.querySelectorAll('.li').forEach(el=>el.classList.remove('active'));
+      div.classList.add('active');
+    });
+    listEl.appendChild(div);
+
+    mk.on('click',()=>{
+      document.querySelectorAll('.li').forEach(el=>el.classList.remove('active'));
+      const li=document.getElementById(`li${c.id}`);
+      if(li){li.classList.add('active');li.scrollIntoView({behavior:'smooth',block:'nearest'});}
+    });
+  });
+
+  document.getElementById('cnt').textContent=vis;
+  document.getElementById('vis').textContent=`${vis} visible${vis!==1?'s':''}`;
+}
+
+// ── listeners tipo ──
+document.querySelectorAll('#pills-tipo .pill').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('#pills-tipo .pill').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on');
+    activeFilt=btn.dataset.f;
+    render();
+  });
+});
+
+// ── listeners zona (toggle) ──
+document.querySelectorAll('#pills-zona .pill').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    if(activeZona===btn.dataset.z){
+      btn.classList.remove('on');
+      activeZona=null;
+    } else {
+      document.querySelectorAll('#pills-zona .pill').forEach(b=>b.classList.remove('on'));
+      btn.classList.add('on');
+      activeZona=btn.dataset.z;
+    }
+    render();
+  });
+});
+
+document.getElementById('q').addEventListener('input',e=>{
+  activeQ=e.target.value;render();
+});
+
+render();
+</script>
+</body>
+</html>
